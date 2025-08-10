@@ -1,10 +1,4 @@
-Epoch,Train_Loss,Train_Acc,Val_Loss,Val_Acc,LR
 1,0.002263899739583333,"tensor(0.4990, device='cuda:0')",0.0023019054651260374,"tensor(0.6288, device='cuda:0')"
 2,0.0022631437420845032,"tensor(0.6190, device='cuda:0')",0.002300986099243164,"tensor(0.6035, device='cuda:0')"
 3,0.0022621096014976503,"tensor(0.5668, device='cuda:0')",0.0022997546672821043,"tensor(0.5384, device='cuda:0')"
 4,0.0022607741912206015,"tensor(0.5028, device='cuda:0')",0.0022982496023178102,"tensor(0.4805, device='cuda:0')"
-5,0.002259217659632365,"tensor(0.4579, device='cuda:0')",0.002296580147743225,"tensor(0.4380, device='cuda:0')"
-6,0.0022575645963350934,"tensor(0.4209, device='cuda:0')",0.0022948588848114015,"tensor(0.4086, device='cuda:0')"
-7,0.002255903685092926,"tensor(0.4023, device='cuda:0')",0.002293209433555603,"tensor(0.4018, device='cuda:0')"
-8,0.002254354647795359,"tensor(0.3978, device='cuda:0')",0.0022916671991348265,"tensor(0.3945, device='cuda:0')"
-9,0.0022529331008593243,"tensor(0.4003, device='cuda:0')",0.0022902736186981203,"tensor(0.4016, device='cuda:0')"
