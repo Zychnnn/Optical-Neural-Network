@@ -44,7 +44,8 @@ def main(args):
                 writer.writerow(
                     ['Epoch', 'Train_Loss', "Train_Acc", 'Val_Loss', "Val_Acc", "LR"])
 
-    criterion = torch.nn.MSELoss(reduction='sum').cuda()
+    criterion = criterion = torch.nn.CrossEntropyLoss().cuda()
+    # 相应地，标签不需要转换为one-hot
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
     for epoch in range(args.start_epoch + 1, args.start_epoch + 1 + args.num_epochs):
@@ -123,7 +124,7 @@ def main(args):
                 val_accuracy = val_running_counter / val_len
 
                 tk1.set_description_str('Epoch {}/{} : Validating'.format(epoch, args.start_epoch + 1 + args.num_epochs - 1))
-                tk1.set_postfix({'Val_Loss': '{:.5f}'.format(val_loss), 'Val_Accuarcy': '{:.5f}'.format(val_accuracy)})
+                tk1.set_postfix({'Val_Loss': '{:.5f}'.format(val_loss), 'Val_Accuracy': '{:.5f}'.format(val_accuracy)})
 
             log.append(val_loss)
             log.append(val_accuracy)
