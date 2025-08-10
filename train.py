@@ -15,8 +15,7 @@ from torch.utils.data import DataLoader
 import onn
 
 
-os.environ["CUDA_VISIBLE_DEVICES"] = '8'
-
+os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 
 def main(args):
 
@@ -27,8 +26,8 @@ def main(args):
     transform = transforms.Compose([transforms.ToTensor()])
     train_dataset = torchvision.datasets.MNIST("./data", train=True, transform=transform, download=True)
     val_dataset = torchvision.datasets.MNIST("./data", train=False, transform=transform, download=True)
-    train_dataloader = DataLoader(dataset=train_dataset, batch_size=args.batch_size, num_workers=112, shuffle=True, pin_memory=True)
-    val_dataloader = DataLoader(dataset=val_dataset, batch_size=args.batch_size, num_workers=112, shuffle=False, pin_memory=True)
+    train_dataloader = DataLoader(dataset=train_dataset, batch_size=args.batch_size, num_workers=8, shuffle=True, pin_memory=True)
+    val_dataloader = DataLoader(dataset=val_dataset, batch_size=args.batch_size, num_workers=8, shuffle=False, pin_memory=True)
 
     model = onn.Net()
     model.cuda()
