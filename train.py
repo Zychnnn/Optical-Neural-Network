@@ -14,69 +14,56 @@ from torch.utils.data import DataLoader
 
 import onn
 
-
 os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 
 def main(args):
-
     if not os.path.exists(args.model_save_path):
         os.mkdir(args.model_save_path)
 
-    # transform = transforms.Compose([transforms.Resize(size=(200, 200)), transforms.ToTensor()])
     transform = transforms.Compose([transforms.ToTensor()])
     train_dataset = torchvision.datasets.MNIST("./data", train=True, transform=transform, download=True)
     val_dataset = torchvision.datasets.MNIST("./data", train=False, transform=transform, download=True)
-    train_dataloader = DataLoader(dataset=train_dataset, batch_size=args.batch_size, num_workers=8, shuffle=True, pin_memory=True)
-    val_dataloader = DataLoader(dataset=val_dataset, batch_size=args.batch_size, num_workers=8, shuffle=False, pin_memory=True)
+    train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, num_workers=8, shuffle=True, pin_memory=True)
+    val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, num_workers=8, shuffle=False, pin_memory=True)
 
-    model = onn.Net()
-    model.cuda()
+    model = onn.Net().cuda()
 
     if args.whether_load_model:
         model.load_state_dict(torch.load(args.model_save_path + str(args.start_epoch) + args.model_name))
-        print('Model : "' + args.model_save_path + str(args.start_epoch) + args.model_name + '" loaded.')
+        print(f'Model "{args.model_save_path}{args.start_epoch}{args.model_name}" loaded.')
     else:
         if os.path.exists(args.result_record_path):
             os.remove(args.result_record_path)
-        else:
-            with open(args.result_record_path, 'w') as csvfile:
-                writer = csv.writer(csvfile)
-                writer.writerow(
-                    ['Epoch', 'Train_Loss', "Train_Acc", 'Val_Loss', "Val_Acc", "LR"])
+        with open(args.result_record_path, 'w') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(['Epoch', 'Train_Loss', "Train_Acc", 'Val_Loss', "Val_Acc", "LR"])
 
-    criterion = criterion = torch.nn.CrossEntropyLoss().cuda()
-    # 相应地，标签不需要转换为one-hot
+    criterion = torch.nn.CrossEntropyLoss().cuda()
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.1)
 
     for epoch in range(args.start_epoch + 1, args.start_epoch + 1 + args.num_epochs):
-
         log = [epoch]
-
         model.train()
 
         train_len = 0.0
         train_running_counter = 0.0
         train_running_loss = 0.0
 
-        tk0 = tqdm(train_dataloader, ncols=100, total=int(len(train_dataloader)))
-        for train_iter, train_data_batch in enumerate(tk0):
+        tk0 = tqdm(train_dataloader, ncols=100, total=len(train_dataloader))
+        for _, (train_images, train_labels) in enumerate(tk0):
+            train_images = train_images.cuda()
+            train_labels = train_labels.cuda()
 
-            train_images = train_data_batch[0].cuda()           # (64, 1, 200, 200) float32 1. 0.
-            train_labels = train_data_batch[1].cuda()           # (1024, 10) int64 9 0
+            # Padding to match ONN input size
             train_images = F.pad(train_images, pad=(86, 86, 86, 86))
+            train_images = torch.squeeze(torch.cat(
+                (train_images.unsqueeze(-1), torch.zeros_like(train_images.unsqueeze(-1))),
+                dim=-1), dim=1)
 
-            #train_labels = F.one_hot(train_labels, num_classes=10).float()
-
-            train_images = torch.squeeze(torch.cat((train_images.unsqueeze(-1),
-                                                    torch.zeros_like(train_images.unsqueeze(-1))), dim=-1), dim=1)
-
-            train_outputs = model(train_images) # shape: (batch_size, 10)
-
+            train_outputs = model(train_images)
             train_loss_ = criterion(train_outputs, train_labels)
-            # train_labels 不再是 one-hot, 直接和 argmax 的结果比较
-            train_counter_ = torch.eq(train_labels, torch.argmax(train_outputs, dim=1)).float().sum() # <--- 修改此行
-
+            train_counter_ = torch.eq(train_labels, torch.argmax(train_outputs, dim=1)).float().sum()
 
             optimizer.zero_grad()
             train_loss_.backward()
@@ -89,33 +76,30 @@ def main(args):
             train_loss = train_running_loss / train_len
             train_accuracy = train_running_counter / train_len
 
-            tk0.set_description_str('Epoch {}/{} : Training'.format(epoch, args.start_epoch + 1 + args.num_epochs - 1))
-            tk0.set_postfix({'Train_Loss': '{:.5f}'.format(train_loss), 'Train_Accuracy': '{:.5f}'.format(train_accuracy)})
+            tk0.set_description_str(f'Epoch {epoch}/{args.start_epoch + args.num_epochs}')
+            tk0.set_postfix({'Train_Loss': f'{train_loss:.5f}', 'Train_Accuracy': f'{train_accuracy:.5f}'})
 
         log.append(train_loss)
         log.append(train_accuracy)
 
+        # Validation
         with torch.no_grad():
-            # 验证
             model.eval()
-
             val_len = 0.0
             val_running_counter = 0.0
             val_running_loss = 0.0
 
-            tk1 = tqdm(val_dataloader, ncols=100, total=int(len(val_dataloader)))
-            for val_iter, val_data_batch in enumerate(tk1):
+            tk1 = tqdm(val_dataloader, ncols=100, total=len(val_dataloader))
+            for _, (val_images, val_labels) in enumerate(tk1):
+                val_images = val_images.cuda()
+                val_labels = val_labels.cuda()
 
-                val_images = val_data_batch[0].cuda()  # (64, 1, 200, 200) float32 1. 0.
-                val_labels = val_data_batch[1].cuda()  # (1024, 10) int64 9 0
                 val_images = F.pad(val_images, pad=(86, 86, 86, 86))
-                #val_labels = F.one_hot(val_labels, num_classes=10).float()
-
-                val_images = torch.squeeze(torch.cat((val_images.unsqueeze(-1),
-                                                        torch.zeros_like(val_images.unsqueeze(-1))), dim=-1), dim=1)
+                val_images = torch.squeeze(torch.cat(
+                    (val_images.unsqueeze(-1), torch.zeros_like(val_images.unsqueeze(-1))),
+                    dim=-1), dim=1)
 
                 val_outputs = model(val_images)
-
                 val_loss_ = criterion(val_outputs, val_labels)
                 val_counter_ = torch.eq(val_labels, torch.argmax(val_outputs, dim=1)).float().sum()
 
@@ -126,36 +110,37 @@ def main(args):
                 val_loss = val_running_loss / val_len
                 val_accuracy = val_running_counter / val_len
 
-                tk1.set_description_str('Epoch {}/{} : Validating'.format(epoch, args.start_epoch + 1 + args.num_epochs - 1))
-                tk1.set_postfix({'Val_Loss': '{:.5f}'.format(val_loss), 'Val_Accuracy': '{:.5f}'.format(val_accuracy)})
+                tk1.set_description_str(f'Epoch {epoch}/{args.start_epoch + args.num_epochs}')
+                tk1.set_postfix({'Val_Loss': f'{val_loss:.5f}', 'Val_Accuracy': f'{val_accuracy:.5f}'})
 
             log.append(val_loss)
             log.append(val_accuracy)
 
-        torch.save(model.state_dict(), (args.model_save_path + str(epoch) + args.model_name))
-        print('Model : "' + args.model_save_path + str(epoch) + args.model_name + '" saved.')
+        torch.save(model.state_dict(), args.model_save_path + str(epoch) + args.model_name)
+        print(f'Model "{args.model_save_path}{epoch}{args.model_name}" saved.')
 
         with open(args.result_record_path, 'a', newline="") as csvfile:
             writer = csv.writer(csvfile)
             writer.writerow(log)
 
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    # 训练参数
     parser.add_argument('--batch-size', type=int, default=1024)
-    parser.add_argument('--num-epochs', type=int, default=50)
+    parser.add_argument('--num-epochs', type=int, default=400)
     parser.add_argument('--seed', type=int, default=42)
-    parser.add_argument('--lr', type=float, default=1e-3, help='学习率')
-    parser.add_argument('--whether-load-model', type=bool, default=False, help="是否加载模型继续训练")
-    parser.add_argument('--start-epoch', type=int, default=0, help='从哪个epoch继续训练')
-    # 数据和模型相关
+    parser.add_argument('--lr', type=float, default=1e-3, help='Learning rate')
+    parser.add_argument('--whether-load-model', type=bool, default=False, help="Load existing model to continue training")
+    parser.add_argument('--start-epoch', type=int, default=0, help='Starting epoch')
     parser.add_argument('--model-name', type=str, default='_model.pth')
     parser.add_argument('--model-save-path', type=str, default="./saved_model/")
-    parser.add_argument('--result-record-path', type=pathlib.Path, default="./result.csv", help="数值结果记录路径")
+    parser.add_argument('--result-record-path', type=pathlib.Path, default="./result.csv", help="CSV result record path")
 
     torch.backends.cudnn.benchmark = True
     args_ = parser.parse_args()
+
     random.seed(args_.seed)
     np.random.seed(args_.seed)
     torch.manual_seed(args_.seed)
+
     main(args_)
