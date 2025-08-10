@@ -73,20 +73,43 @@ class Net(torch.nn.Module):
             self.register_parameter("phase" + "_" + str(i), self.phase[i])
         self.diffractive_layers = torch.nn.ModuleList([DiffractiveLayer() for _ in range(num_layers)])
         self.last_diffractive_layer = DiffractiveLayer()
-        self.sofmax = torch.nn.Softmax(dim=-1)
+        # 删除了self.softmax，因为CrossEntropyLoss会包含它
+        self.num_layers = num_layers
+        
+        # self.phase (200, 200)
+        self.phase = [torch.nn.Parameter(torch.from_numpy(2 * np.pi * np.random.random(size=(200, 200)).astype('float32'))) for _ in range(num_layers)]
+        for i in range(num_layers):
+            self.register_parameter("phase" + "_" + str(i), self.phase[i])
+        self.diffractive_layers = torch.nn.ModuleList([DiffractiveLayer() for _ in range(num_layers)])
+        self.last_diffractive_layer = DiffractiveLayer()
 
+        
     def forward(self, x):
         # x (batch, 200, 200, 2)
         for index, layer in enumerate(self.diffractive_layers):
             temp = layer(x)
-            exp_j_phase = torch.stack((torch.cos(self.phase[index]), torch.sin(self.phase[index])), dim=-1)
+
+            # ======================== 论文对齐修改 1: 约束相位 ========================
+            # 使用取模运算将相位约束在 [0, 2*pi] 范围内，与论文一致
+            bounded_phase = self.phase[index] % (2 * np.pi)
+            exp_j_phase = torch.stack((torch.cos(bounded_phase), torch.sin(bounded_phase)), dim=-1)
+            # ======================================================================
+
             x_real = temp[..., 0] * exp_j_phase[..., 0] - temp[..., 1] * exp_j_phase[..., 1]
             x_imag = temp[..., 0] * exp_j_phase[..., 1] + temp[..., 1] * exp_j_phase[..., 0]
             x = torch.stack((x_real, x_imag), dim=-1)
+
         x = self.last_diffractive_layer(x)
-        # x_abs (batch, 200, 200)
-        x_abs = torch.sqrt(x[..., 0] * x[..., 0] + x[..., 1] * x[..., 1])
-        output = self.sofmax(detector_region(x_abs))
+
+        # ======================== 论文对齐修改 2: 使用光强 ========================
+        # 论文中的探测器测量的是光强 (振幅的平方)，而不是振幅
+        # intensity shape: (batch, 200, 200)
+        intensity = x[..., 0]**2 + x[..., 1]**2
+        # ====================================================================
+        
+        # 将光强图送入探测器区域进行信号提取
+        output = detector_region(intensity) # 注意这里输入的是 intensity
+        
         return output
 
 

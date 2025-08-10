@@ -47,6 +47,7 @@ def main(args):
     criterion = criterion = torch.nn.CrossEntropyLoss().cuda()
     # 相应地，标签不需要转换为one-hot
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.1)
 
     for epoch in range(args.start_epoch + 1, args.start_epoch + 1 + args.num_epochs):
 
@@ -65,15 +66,17 @@ def main(args):
             train_labels = train_data_batch[1].cuda()           # (1024, 10) int64 9 0
             train_images = F.pad(train_images, pad=(86, 86, 86, 86))
 
-            train_labels = F.one_hot(train_labels, num_classes=10).float()
+            #train_labels = F.one_hot(train_labels, num_classes=10).float()
 
             train_images = torch.squeeze(torch.cat((train_images.unsqueeze(-1),
                                                     torch.zeros_like(train_images.unsqueeze(-1))), dim=-1), dim=1)
 
-            train_outputs = model(train_images)
+            train_outputs = model(train_images) # shape: (batch_size, 10)
 
             train_loss_ = criterion(train_outputs, train_labels)
-            train_counter_ = torch.eq(torch.argmax(train_labels, dim=1), torch.argmax(train_outputs, dim=1)).float().sum()
+            # train_labels 不再是 one-hot, 直接和 argmax 的结果比较
+            train_counter_ = torch.eq(train_labels, torch.argmax(train_outputs, dim=1)).float().sum() # <--- 修改此行
+
 
             optimizer.zero_grad()
             train_loss_.backward()
@@ -106,7 +109,7 @@ def main(args):
                 val_images = val_data_batch[0].cuda()  # (64, 1, 200, 200) float32 1. 0.
                 val_labels = val_data_batch[1].cuda()  # (1024, 10) int64 9 0
                 val_images = F.pad(val_images, pad=(86, 86, 86, 86))
-                val_labels = F.one_hot(val_labels, num_classes=10).float()
+                #val_labels = F.one_hot(val_labels, num_classes=10).float()
 
                 val_images = torch.squeeze(torch.cat((val_images.unsqueeze(-1),
                                                         torch.zeros_like(val_images.unsqueeze(-1))), dim=-1), dim=1)
@@ -114,7 +117,7 @@ def main(args):
                 val_outputs = model(val_images)
 
                 val_loss_ = criterion(val_outputs, val_labels)
-                val_counter_ = torch.eq(torch.argmax(val_labels, dim=1), torch.argmax(val_outputs, dim=1)).float().sum()
+                val_counter_ = torch.eq(val_labels, torch.argmax(val_outputs, dim=1)).float().sum()
 
                 val_len += len(val_labels)
                 val_running_loss += val_loss_.item()
