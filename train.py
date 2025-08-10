@@ -143,7 +143,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     # 训练参数
     parser.add_argument('--batch-size', type=int, default=1024)
-    parser.add_argument('--num-epochs', type=int, default=400)
+    parser.add_argument('--num-epochs', type=int, default=50)
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--lr', type=float, default=1e-3, help='学习率')
     parser.add_argument('--whether-load-model', type=bool, default=False, help="是否加载模型继续训练")
