@@ -94,6 +94,7 @@ def main(args):
 
         log.append(train_loss)
         log.append(train_accuracy)
+        log.append(optimizer.param_groups[0]['lr'])
 
         with torch.no_grad():
             # 验证
@@ -131,7 +132,8 @@ def main(args):
 
             log.append(val_loss)
             log.append(val_accuracy)
-
+            log.append(optimizer.param_groups[0]['lr'])
+            
         torch.save(model.state_dict(), (args.model_save_path + str(epoch) + args.model_name))
         print('Model : "' + args.model_save_path + str(epoch) + args.model_name + '" saved.')
 
